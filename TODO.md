@@ -13,7 +13,7 @@
 ## 🔄 MetaData → UserData Sync
 - [x] Sync `AnimeMetaData` → `AnimeMetaDataLocal`
 - [x] Sync `DataTables` from `MetaData!DataTables` → `UserData!DataTables` (replace after `SeasonData`)
-- [ ] Add auto-update wrapper for `DataTables` sync
+- [x] Add auto-update wrapper for `DataTables` sync
 - [ ] Add timestamp logging for `DataTables` sync
 
 ---
