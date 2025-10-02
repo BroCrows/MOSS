@@ -12,7 +12,7 @@
 
 ## 🔄 MetaData → UserData Sync
 - [x] Sync `AnimeMetaData` → `AnimeMetaDataLocal`
-- [ ] Sync `DataTables` from `MetaData!DataTables` → `UserData!DataTables` (replace after `SeasonData`)
+- [x] Sync `DataTables` from `MetaData!DataTables` → `UserData!DataTables` (replace after `SeasonData`)
 - [ ] Add auto-update wrapper for `DataTables` sync
 - [ ] Add timestamp logging for `DataTables` sync
 
@@ -51,6 +51,10 @@
 - [ ] Add manual sync buttons (MetaData, DataTables, Merge)
 - [ ] Add sync logging (per event timestamps)
 - [ ] Add error handling for missing data or columns
+- [ ] Language Options for
+  - [ ] Franchise
+  - [ ] Country
+  - [ ] Seasons
 
 ---
 
