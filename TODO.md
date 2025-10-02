@@ -59,3 +59,4 @@
 - [ ] Status-based dashboard (e.g., Watching %, Completed)
 - [ ] Conditional formatting for Completion or Episode %
 - [ ] JSON export via Apps Script
+- [ ] Create a specific Debug sheet in UserData
