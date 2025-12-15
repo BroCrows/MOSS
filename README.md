@@ -1,4 +1,4 @@
-**MOSS is currently a work in progress with an unknown release date.** If you wish to have early access feel free to get in contact with me through this [Discord](https://discord.com/invite/AC59VqwnHw). The Discord is also a work in progress so bare with me.
+**MOSS is currently a work in progress with an unknown release date.** If you wish to have early access feel free to get in contact with me through this [Discord](https://discord.gg/g2EsruKJ5w). The Discord is also a work in progress so bare with me.
 
 # MOSS — Modular Otaku Scoring System
 
