@@ -1,26 +1,31 @@
 function mDataSync() {
   // ==================================================
-  // syncMData_To_AnimeData
-  // --------------------------------------------------
-  // Purpose:
-  //   Synchronizes canonical anime metadata from the
+  // PURPOSE
+  //   Synchronize canonical anime metadata from the
   //   MetaData spreadsheet into AnimeDataMerged.
   //
-  // Design contract (VERY IMPORTANT):
-  //   - This function ONLY writes to META-OWNED columns
-  //   - User-entered data and ALL formulas are preserved
-  //   - No full-row or full-sheet overwrites are allowed
+  // ARCHITECTURAL ROLE
+  //   - MetaData is the *single source of truth*
+  //   - AnimeDataMerged is a *hybrid backend sheet*:
+  //       • Left block  → script-owned metadata
+  //       • Right block → user data + formulas
   //
-  // Why this exists:
-  //   - MetaData is the single source of truth
-  //   - AnimeDataMerged is a hybrid sheet:
-  //       * Left side: script-owned metadata
-  //       * Right side: user data + formulas
+  // HARD CONTRACT (DO NOT BREAK)
+  //   - ONLY meta-owned columns may be written
+  //   - User-entered columns must NEVER be touched
+  //   - Formula columns must NEVER be overwritten
+  //   - No full-row or full-sheet writes
   //
-  // Safety rules:
-  //   - Never call setValues() on the full sheet
-  //   - Never touch non-meta columns
-  //   - Always gate updates by Last Updated when possible
+  // PERFORMANCE DESIGN
+  //   - Read source + destination once
+  //   - Resolve column indexes once
+  //   - Gate work via Last Updated timestamps
+  //   - Update rows individually to preserve formulas
+  //
+  // FAILURE MODES THIS FUNCTION AVOIDS
+  //   - Formula snapshotting
+  //   - Full-sheet recalculation storms
+  //   - Accidental user data loss
   // ==================================================
 
   const start = Date.now();
@@ -55,17 +60,16 @@ function mDataSync() {
   }
 
   // ==================================================
-  // DESTINATION — AnimeDataMerged (hybrid sheet)
+  // DESTINATION — AnimeDataMerged (hybrid backend)
   // ==================================================
-  const destHeader = targetSheet
-    .getRange(1, 1, 1, targetSheet.getLastColumn())
-    .getValues()[0];
+  const destValues = targetSheet.getDataRange().getValues();
+  const destHeader = destValues[0];
 
   const destIdIdx = destHeader.indexOf("Anime ID");
   if (destIdIdx === -1) throw new Error('Missing "Anime ID" column in destination.');
 
   // ==================================================
-  // LOGGING — Named ranges for observability
+  // LOGGING — Named ranges (observability only)
   // ==================================================
   const countCell = ss.getRangeByName('MDataAnimeDataCount');
   const updatesCell = ss.getRangeByName('MDataAnimeDataUpdates');
@@ -73,14 +77,12 @@ function mDataSync() {
   const updateCell = ss.getRangeByName('MDataAnimeDataUpdate');
 
   // ==================================================
-  // DESTINATION MAP — Anime ID → row index
+  // DESTINATION MAP — Anime ID → sheet row index
   // --------------------------------------------------
-  // Allows O(1) lookup when deciding whether to update
-  // or append a row.
+  // Enables O(1) lookup when deciding whether to
+  // update an existing row or append a new one.
   // ==================================================
-  const destValues = targetSheet.getDataRange().getValues();
   const destMap = new Map();
-
   for (let r = 1; r < destValues.length; r++) {
     const id = destValues[r][destIdIdx];
     if (id) destMap.set(id, r + 1);
@@ -89,9 +91,8 @@ function mDataSync() {
   // ==================================================
   // META-OWNED COLUMNS (authoritative list)
   // --------------------------------------------------
-  // These columns are owned by MetaData and may be
-  // overwritten safely by this script.
-  // Anything NOT listed here must NEVER be touched.
+  // These columns are fully controlled by MetaData.
+  // Anything NOT listed here must NEVER be modified.
   // ==================================================
   const metaCols = [
     "Data Completion","Last Updated","Airing","Dubbed","Anime ID","Title",
@@ -104,10 +105,7 @@ function mDataSync() {
   ];
 
   // ==================================================
-  // COLUMN INDEX RESOLUTION (ONCE)
-  // --------------------------------------------------
-  // Pre-resolving indexes avoids repeated indexOf calls
-  // and guarantees consistent column targeting.
+  // COLUMN INDEX RESOLUTION (ONE-TIME)
   // ==================================================
   const destColIdx = {};
   for (const h of metaCols) {
@@ -127,18 +125,13 @@ function mDataSync() {
   // ==================================================
   // INCREMENTAL SYNC GATE — Last successful run
   // ==================================================
-  const lastSyncVal = updateCell?.getValue();
+  const lastSyncVal = updateCell ? updateCell.getValue() : "";
   const lastSyncDate = lastSyncVal ? new Date(lastSyncVal) : null;
 
   const updatedIDs = [];
 
   // ==================================================
-  // MAIN LOOP — Row-level, formula-safe sync
-  // --------------------------------------------------
-  // For each anime in MetaData:
-  //   - Skip if unchanged since last sync
-  //   - Update existing row OR append new row
-  //   - Write ONLY meta-owned columns
+  // MAIN LOOP — Row-level, formula-safe synchronization
   // ==================================================
   for (let i = 1; i < srcData.length; i++) {
     const row = srcData[i];
@@ -152,21 +145,14 @@ function mDataSync() {
     let targetRowIndex;
 
     if (destMap.has(id)) {
-      // Existing anime → update in place
       targetRowIndex = destMap.get(id);
-      targetRow = targetSheet
-        .getRange(targetRowIndex, 1, 1, destHeader.length)
-        .getValues()[0];
+      targetRow = destValues[targetRowIndex - 1].slice();
     } else {
-      // New anime → append clean row
       targetRowIndex = targetSheet.getLastRow() + 1;
       targetRow = new Array(destHeader.length).fill("");
       targetRow[destIdIdx] = id;
     }
 
-    // --------------------------------------------------
-    // Apply MetaData values ONLY to meta-owned columns
-    // --------------------------------------------------
     for (const h of metaCols) {
       const sIdx = srcColIdx[h];
       const dIdx = destColIdx[h];
@@ -174,7 +160,6 @@ function mDataSync() {
       targetRow[dIdx] = row[sIdx];
     }
 
-    // Row-level write preserves all formulas elsewhere
     targetSheet
       .getRange(targetRowIndex, 1, 1, destHeader.length)
       .setValues([targetRow]);
@@ -183,14 +168,14 @@ function mDataSync() {
   }
 
   // ==================================================
-  // LOGGING — Timing, counts, and traceability
+  // LOGGING — Timing & traceability
   // ==================================================
   const elapsed = ((Date.now() - start) / 1000).toFixed(2);
 
-  countCell?.setValue(updatedIDs.length);
-  updatesCell?.setValue(updatedIDs.join(", "));
-  timeTookCell?.setValue(elapsed);
-  updateCell?.setValue(new Date().toISOString());
+  if (countCell) countCell.setValue(updatedIDs.length);
+  if (updatesCell) updatesCell.setValue(updatedIDs.join(", "));
+  if (timeTookCell) timeTookCell.setValue(elapsed);
+  if (updateCell) updateCell.setValue(new Date().toISOString());
 
   Logger.log(`MetaData sync complete: ${updatedIDs.length} rows in ${elapsed}s`);
 }
